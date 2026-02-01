@@ -72,11 +72,42 @@ const App = () => {
   // --- 1. STATE MANAGEMENT ---
   const [snapshots, setSnapshots] = useState([]); 
   const [membranes, setMembranes] = useState([
-    { id: 'espa2ld', name: 'ESPA2-LD', area: 400, aValue: 0.18, rejection: 99.7, type: 'Brackish' },
-    { id: 'cpa3', name: 'CPA3', area: 400, aValue: 0.12, rejection: 99.7, type: 'Brackish' },
-    { id: 'swc5ld', name: 'SWC5-LD', area: 400, aValue: 0.06, rejection: 99.8, type: 'Seawater' },
+    { id: 'espa2ld', name: 'ESPA2-LD', area: 400, aValue: 0.18, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, type: 'Brackish' },
+    { id: 'cpa3', name: 'CPA3', area: 400, aValue: 0.12, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, type: 'Brackish' },
+    { id: 'swc5ld', name: 'SWC5-LD', area: 400, aValue: 0.06, rejection: 99.8, monoRejection: 98.0, divalentRejection: 99.8, silicaRejection: 99.0, boronRejection: 92.0, alkalinityRejection: 99.7, co2Rejection: 0.0, type: 'Seawater' },
     // Legacy 4" element example (4040) used in IMSDesign screenshots
-    { id: 'lfc3ld4040', name: 'LFC3-LD4040', area: 80, aValue: 0.12, rejection: 99.7, type: 'Low Fouling' }
+    { 
+      id: 'lfc3ld4040',
+      name: 'LFC3-LD4040',
+      area: 80,
+      aValue: 0.12,
+      rejection: 99.7,
+      monoRejection: 92.0,
+      divalentRejection: 99.95,
+      silicaRejection: 99.95,
+      boronRejection: 99.9,
+      alkalinityRejection: 99.985,
+      co2Rejection: 0.0,
+      ionRejectionOverrides: {
+        na: 93.04,
+        cl: 91.07,
+        k: 99.9,
+        no3: 99.99,
+        f: 99.99,
+        hco3: 99.984,
+        co3: 99.99,
+        so4: 99.99,
+        ca: 99.99,
+        mg: 99.99,
+        sr: 99.99,
+        ba: 99.99,
+        sio2: 99.99,
+        po4: 99.99,
+        b: 99.99,
+        co2: 0.0
+      },
+      type: 'Low Fouling'
+    }
   ]); 
   
   const [projectNotes, setProjectNotes] = useState(""); 
@@ -265,8 +296,64 @@ const App = () => {
     // Keep the existing (simplified) pressure/energy model, but make it consistent with the new flow basis.
     const TCF = Math.exp(2640 * (1 / 298.15 - 1 / (Number(waterData.temp) + 273.15)));
     const CF = 1 / (1 - recovery);
-    const tds = (Number(waterData.na) + Number(waterData.cl) + Number(waterData.so4));
-    const osmoticP = (tds * CF * 0.76) / 1000;
+
+    const getNumeric = (value) => Number(value) || 0;
+    const ionFeed = {
+      ca: getNumeric(waterData.ca),
+      mg: getNumeric(waterData.mg),
+      na: getNumeric(waterData.na),
+      k: getNumeric(waterData.k),
+      sr: getNumeric(waterData.sr),
+      ba: getNumeric(waterData.ba),
+      hco3: getNumeric(waterData.hco3),
+      so4: getNumeric(waterData.so4),
+      cl: getNumeric(waterData.cl),
+      no3: getNumeric(waterData.no3),
+      sio2: getNumeric(waterData.sio2),
+      po4: getNumeric(waterData.po4),
+      b: getNumeric(waterData.b),
+      f: getNumeric(waterData.f),
+      co2: getNumeric(waterData.co2),
+      co3: getNumeric(waterData.co3)
+    };
+
+    const membraneRejection = Math.min(Math.max(Number(activeMem?.rejection) || 99.7, 80), 99.9);
+    const defaultMono = Math.max(Math.min((Number(activeMem?.monoRejection) || (membraneRejection - 6)), 99.9), 80);
+    const defaultDivalent = Math.max(Math.min((Number(activeMem?.divalentRejection) || membraneRejection), 99.9), 80);
+    const silicaRejection = Math.max(Math.min((Number(activeMem?.silicaRejection) || (membraneRejection - 1)), 99.9), 80);
+    const boronRejection = Math.max(Math.min((Number(activeMem?.boronRejection) || (membraneRejection - 8)), 99.9), 60);
+    const alkalinityRejection = Math.max(Math.min((Number(activeMem?.alkalinityRejection) || (membraneRejection - 0.2)), 99.9), 80);
+    const co2Rejection = Math.max(Math.min((Number(activeMem?.co2Rejection) || 0), 99.9), 0);
+
+    const getIonRejection = (ionKey) => {
+      const overrides = activeMem?.ionRejectionOverrides || {};
+      if (overrides[ionKey] != null) return Number(overrides[ionKey]);
+      if (['ca', 'mg', 'sr', 'ba', 'so4', 'po4'].includes(ionKey)) return defaultDivalent;
+      if (['na', 'k', 'cl', 'no3', 'f'].includes(ionKey)) return defaultMono;
+      if (['hco3', 'co3'].includes(ionKey)) return alkalinityRejection;
+      if (ionKey === 'sio2') return silicaRejection;
+      if (ionKey === 'b') return boronRejection;
+      if (ionKey === 'co2') return co2Rejection;
+      return membraneRejection;
+    };
+
+    const formatConc = (value) => Number(value).toFixed(3);
+    const sumValues = (obj) => Object.values(obj).reduce((sum, val) => sum + (Number(val) || 0), 0);
+
+    const permeateConcentration = Object.fromEntries(
+      Object.entries(ionFeed).map(([key, value]) => {
+        const rejection = getIonRejection(key);
+        const passage = Math.max(1 - rejection / 100, 0);
+        return [key, formatConc(value * passage)];
+      })
+    );
+    const concentrateConcentration = Object.fromEntries(
+      Object.entries(ionFeed).map(([key, value]) => [key, formatConc(value * CF)])
+    );
+
+    const permeateTds = sumValues(permeateConcentration);
+    const concentrateTds = sumValues(concentrateConcentration);
+    const osmoticP = (concentrateTds * 0.76) / 1000;
 
     // Ageing / fouling / SP increase: approximate Hydranautics behaviour
     const membraneAge = Math.max(Number(systemConfig.membraneAge) || 0, 0);
@@ -298,6 +385,46 @@ const App = () => {
       return Number(value).toFixed(1); // 1 decimal when calculated
     };
 
+    const permeatePh = Math.min(Math.max(getNumeric(waterData.ph) - 1.1, 0), 14);
+    const concentratePh = Math.min(Math.max(getNumeric(waterData.ph) + Math.log10(CF) * 0.3, 0), 14);
+
+    // Langelier Saturation Index (simplified, consistent with PreTreatment)
+    const pCa = 5.0 - Math.log10(Math.max(getNumeric(concentrateConcentration.ca) * 2.5, 0.0001));
+    const pAlk = 5.0 - Math.log10(Math.max(getNumeric(concentrateConcentration.hco3) * 0.82, 0.0001));
+    const C = (Math.log10(Math.max(concentrateTds, 1)) - 1) / 10 + (Number(waterData.temp) > 25 ? 2.0 : 2.3);
+    const phs = C + pCa + pAlk;
+    const lsi = concentratePh - phs;
+    const ccpp = lsi > 0 ? lsi * 50 : 0;
+
+    const caConc = getNumeric(concentrateConcentration.ca);
+    const so4Conc = getNumeric(concentrateConcentration.so4);
+    const baConc = getNumeric(concentrateConcentration.ba);
+    const srConc = getNumeric(concentrateConcentration.sr);
+    const sio2Conc = getNumeric(concentrateConcentration.sio2);
+    const po4Conc = getNumeric(concentrateConcentration.po4);
+    const fConc = getNumeric(concentrateConcentration.f);
+
+    const concentrateSaturation = {
+      caSo4: Number((caConc * so4Conc) / 1000).toFixed(1),
+      baSo4: Number((baConc * so4Conc) / 50).toFixed(1),
+      srSo4: Number((srConc * so4Conc) / 2000).toFixed(1),
+      sio2: Number((sio2Conc / 120) * 100).toFixed(1),
+      ca3po42: Number((caConc * po4Conc) / 100).toFixed(2),
+      caF2: Number((caConc * fConc) / 500).toFixed(1)
+    };
+
+    const concentrateParameters = {
+      osmoticPressure: osmoticP.toFixed(1),
+      ccpp: Number(ccpp).toFixed(1),
+      langelier: lsi.toFixed(2),
+      ph: concentratePh.toFixed(1),
+      tds: concentrateTds.toFixed(1)
+    };
+    const permeateParameters = {
+      ph: permeatePh.toFixed(1),
+      tds: permeateTds.toFixed(1)
+    };
+
     setProjection({
       // Train-level flows (match IMSDesign Train Information box with unit-based precision)
       permeateFlow: formatFlow(perTrainProduct_display, flowDecimals),
@@ -322,7 +449,12 @@ const App = () => {
 
       tcf: TCF.toFixed(2),
       activeMembrane: activeMem,
-      totalElements: totalElements
+      totalElements: totalElements,
+
+      permeateConcentration,
+      concentrateSaturation,
+      concentrateParameters,
+      permeateParameters
     });
   }, [waterData, systemConfig, membranes]);
 

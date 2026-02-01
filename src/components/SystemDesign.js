@@ -558,7 +558,7 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
       )}
 
       {/* BOTTOM SECTION: CALCULATION RESULTS (VISIBLE ONLY AFTER RUN) */}
-      {projection && (
+      {systemConfig.designCalculated && projection && (
         <div style={{ ...panelStyle, background: '#d9e4f0' }}>
           <div style={headerStyle}>Calculation Results</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'center', background: 'white' }}>
@@ -582,11 +582,45 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
             </tbody>
           </table>
 
-          <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '5px', fontSize: '0.7rem' }}>
-             <div>Na: {waterData.na}</div>
-             <div>Cl: {waterData.cl}</div>
-             <div>TDS: 2209.5 mg/l</div>
-             <div style={{ fontWeight: 'bold' }}>Osmotic: 25.4 psi</div>
+          <div style={{ marginTop: '12px', background: 'white', padding: '8px', border: '1px solid #c2d1df' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '0.75rem' }}>Permeate Concentration (mg/L)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', fontSize: '0.7rem' }}>
+              <div>Ca: {projection.permeateConcentration?.ca ?? '0.000'}</div>
+              <div>Mg: {projection.permeateConcentration?.mg ?? '0.000'}</div>
+              <div>Na: {projection.permeateConcentration?.na ?? '0.000'}</div>
+              <div>K: {projection.permeateConcentration?.k ?? '0.000'}</div>
+              <div>Sr: {projection.permeateConcentration?.sr ?? '0.000'}</div>
+              <div>Ba: {projection.permeateConcentration?.ba ?? '0.000'}</div>
+              <div>HCO3: {projection.permeateConcentration?.hco3 ?? '0.000'}</div>
+              <div>SO4: {projection.permeateConcentration?.so4 ?? '0.000'}</div>
+              <div>Cl: {projection.permeateConcentration?.cl ?? '0.000'}</div>
+              <div>NO3: {projection.permeateConcentration?.no3 ?? '0.000'}</div>
+              <div>SiO2: {projection.permeateConcentration?.sio2 ?? '0.000'}</div>
+              <div>PO4: {projection.permeateConcentration?.po4 ?? '0.000'}</div>
+              <div>F: {projection.permeateConcentration?.f ?? '0.000'}</div>
+              <div>B: {projection.permeateConcentration?.b ?? '0.000'}</div>
+              <div>CO2: {projection.permeateConcentration?.co2 ?? '0.000'}</div>
+              <div>CO3: {projection.permeateConcentration?.co3 ?? '0.000'}</div>
+              <div>pH: {projection.permeateParameters?.ph ?? '0.0'}</div>
+              <div>TDS: {projection.permeateParameters?.tds ?? '0.0'} mg/L</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '10px', background: 'white', padding: '8px', border: '1px solid #c2d1df' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '0.75rem' }}>Concentrate Saturations and Parameters</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', fontSize: '0.7rem' }}>
+              <div>CaSO4: {projection.concentrateSaturation?.caSo4 ?? '0.0'}%</div>
+              <div>BaSO4: {projection.concentrateSaturation?.baSo4 ?? '0.0'}%</div>
+              <div>SrSO4: {projection.concentrateSaturation?.srSo4 ?? '0.0'}%</div>
+              <div>SiO2: {projection.concentrateSaturation?.sio2 ?? '0.0'}%</div>
+              <div>Ca3(PO4)2: {projection.concentrateSaturation?.ca3po42 ?? '0.00'}%</div>
+              <div>CaF2: {projection.concentrateSaturation?.caF2 ?? '0.0'}%</div>
+              <div>Osmotic: {projection.concentrateParameters?.osmoticPressure ?? '0.0'} psi</div>
+              <div>CCPP: {projection.concentrateParameters?.ccpp ?? '0.0'} mg/L</div>
+              <div>Langelier: {projection.concentrateParameters?.langelier ?? '0.00'}</div>
+              <div>pH: {projection.concentrateParameters?.ph ?? '0.0'}</div>
+              <div>TDS: {projection.concentrateParameters?.tds ?? '0.0'} mg/L</div>
+            </div>
           </div>
         </div>
       )}
