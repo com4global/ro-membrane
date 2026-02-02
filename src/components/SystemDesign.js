@@ -590,17 +590,37 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
                 <th style={{ border: '1px solid #ccc' }}>Vessels</th>
                 <th style={{ border: '1px solid #ccc' }}>Feed (psi)</th>
                 <th style={{ border: '1px solid #ccc' }}>Conc (psi)</th>
+                <th style={{ border: '1px solid #ccc' }}>Feed (gpm)</th>
+                <th style={{ border: '1px solid #ccc' }}>Conc (gpm)</th>
                 <th style={{ border: '1px solid #ccc' }}>Flux (gfd)</th>
+                <th style={{ border: '1px solid #ccc' }}>Highest flux (gfd)</th>
+                <th style={{ border: '1px solid #ccc' }}>Highest beta</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style={{ border: '1px solid #ccc' }}>1 - 1</td>
-                <td style={{ border: '1px solid #ccc' }}>{systemConfig.stage1Vessels}</td>
-                <td style={{ border: '1px solid #ccc' }}>126.2</td>
-                <td style={{ border: '1px solid #ccc' }}>117.3</td>
-                <td style={{ border: '1px solid #ccc' }}>{projection.fluxGFD}</td>
-              </tr>
+              {(projection.stageResults && projection.stageResults.length > 0 ? projection.stageResults : [{
+                index: 1,
+                vessels: systemConfig.stage1Vessels,
+                feedPressurePsi: projection.calcFeedPressurePsi ?? '0.0',
+                concPressurePsi: projection.calcConcPressurePsi ?? '0.0',
+                feedFlowGpm: projection.calcFeedFlowGpm ?? '0.00',
+                concFlowGpm: projection.calcConcFlowGpm ?? '0.00',
+                fluxGfd: projection.calcFluxGfd ?? '0.0',
+                highestFluxGfd: projection.calcHighestFluxGfd ?? '0.0',
+                highestBeta: projection.calcHighestBeta ?? '0.00'
+              }]).map((row) => (
+                <tr key={`stage-${row.index}`}>
+                  <td style={{ border: '1px solid #ccc' }}>1 - {row.index}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.vessels}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.feedPressurePsi}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.concPressurePsi}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.feedFlowGpm}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.concFlowGpm}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.fluxGfd}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.highestFluxGfd}</td>
+                  <td style={{ border: '1px solid #ccc' }}>{row.highestBeta}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
 

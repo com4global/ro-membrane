@@ -7,6 +7,7 @@ import Report from './components/Report';
 import MembraneEditor from './components/MembraneEditor';
 import DesignGuidelines from './components/DesignGuidelines';
 import ValidationBanner from './components/ValidationBanner';
+import { calculateSystem } from './utils/calculatorService';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('analysis');
@@ -188,6 +189,63 @@ const App = () => {
     const totalArea_m2 = totalArea_ft2 * 0.09290304;
 
     const perTrainProduct_gpd = perTrainProduct_m3h * M3H_TO_GPD;
+    const M3H_TO_GPM = 4.402867;
+    const BAR_TO_PSI = 14.5038;
+    const KFB_DEFAULT = 0.315;
+
+    const calcResults = calculateSystem({
+      totalFlow: perTrainProduct_m3h,
+      recovery: recoveryPct,
+      vessels: Number(systemConfig.stage1Vessels) || 0,
+      elementsPerVessel: Number(systemConfig.elementsPerVessel) || 0,
+      feedPH: Number(waterData.ph) || 7.0,
+      tempF: (Number(waterData.temp) * 9 / 5) + 32
+    });
+
+    const pass1Stages = Math.min(Math.max(Number(systemConfig.pass1Stages) || 1, 1), 6);
+    const activeStages = systemConfig.stages?.slice(0, pass1Stages) || [];
+    const totalStageVessels = activeStages.reduce((sum, stage) => sum + (Number(stage?.vessels) || 0), 0);
+    let remainingFeed_m3h = perTrainFeed_m3h;
+    let runningFeedPressureBar = Number(calcResults?.feedPressure || 0);
+    const stageResults = activeStages.map((stage, index) => {
+      const stageVessels = Number(stage?.vessels) || 0;
+      const stageElements = Number(stage?.elementsPerVessel) || 0;
+      const stagePermeate_m3h = totalStageVessels > 0
+        ? perTrainProduct_m3h * (stageVessels / totalStageVessels)
+        : 0;
+      const stageFeed_m3h = remainingFeed_m3h;
+      const stageConc_m3h = stageFeed_m3h - stagePermeate_m3h;
+      remainingFeed_m3h = Math.max(stageConc_m3h, 0);
+
+      const perVesselFeed_m3h = stageVessels > 0 ? stageFeed_m3h / stageVessels : 0;
+      const perVesselConc_m3h = stageVessels > 0 ? stageConc_m3h / stageVessels : 0;
+      const qAvg = (perVesselFeed_m3h + perVesselConc_m3h) / 2;
+      const stageDropBar = stageElements > 0 ? stageElements * KFB_DEFAULT * Math.pow(qAvg, 1.75) : 0;
+      const stageFeedBar = runningFeedPressureBar;
+      const stageConcBar = stageFeedBar - stageDropBar;
+      runningFeedPressureBar = Math.max(stageConcBar, 0);
+
+      const perVesselPerm_m3h = stageVessels > 0 ? stagePermeate_m3h / stageVessels : 0;
+      const totalElementsStage = stageElements * stageVessels;
+      const stageArea_ft2 = totalElementsStage * 400;
+      const perVesselPerm_gpd = perVesselPerm_m3h * 24 * 264.172052;
+      const fluxGfd = stageArea_ft2 > 0 ? perVesselPerm_gpd / (stageElements * 400) : 0;
+      const stageRecovery = stageFeed_m3h > 0 ? stagePermeate_m3h / stageFeed_m3h : 0;
+      const highestBeta = Math.exp(0.7 * stageRecovery);
+      const highestFluxGfd = fluxGfd * (1 + (stageRecovery * 0.32));
+
+      return {
+        index: index + 1,
+        vessels: stageVessels,
+        feedPressurePsi: (stageFeedBar * BAR_TO_PSI).toFixed(1),
+        concPressurePsi: (stageConcBar * BAR_TO_PSI).toFixed(1),
+        feedFlowGpm: (perVesselFeed_m3h * M3H_TO_GPM).toFixed(2),
+        concFlowGpm: (perVesselConc_m3h * M3H_TO_GPM).toFixed(2),
+        fluxGfd: fluxGfd.toFixed(1),
+        highestFluxGfd: highestFluxGfd.toFixed(1),
+        highestBeta: highestBeta.toFixed(2)
+      };
+    });
     
     // Calculate flux - always calculate, but only display if designCalculated is true
     let rawFluxGFD = 0;
@@ -450,6 +508,15 @@ const App = () => {
       tcf: TCF.toFixed(2),
       activeMembrane: activeMem,
       totalElements: totalElements,
+
+      calcFeedPressurePsi: calcResults ? (Number(calcResults.feedPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+      calcConcPressurePsi: calcResults ? (Number(calcResults.concPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+      calcFeedFlowGpm: calcResults ? (Number(calcResults.feedFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
+      calcConcFlowGpm: calcResults ? (Number(calcResults.concFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
+      calcFluxGfd: calcResults?.avgFlux ?? '0.0',
+      calcHighestFluxGfd: calcResults?.highestFlux ?? '0.0',
+      calcHighestBeta: calcResults?.highestBeta ?? '0.00',
+      stageResults,
 
       permeateConcentration,
       concentrateSaturation,

@@ -12,53 +12,56 @@ const FLOW_TO_M3H = {
 
 export const calculateSystem = (inputs) => {
   const {
-    totalFlow, // m3/h
-    recovery,  // % (e.g., 55)
-    vessels,   // 23
+    totalFlow,        // 70.00 m3/h
+    recovery = 55,    // 55.00 %
+    vessels = 23,     // 23
     elementsPerVessel = 1,
-    tempF = 77,
-    waterType = 'Brackish Well'
+    feedPH = 7.0,
+    tempF = 77
   } = inputs;
 
+  // 1. Physical Constants
   const recFrac = (Number(recovery) || 0) / 100;
+  const areaPerElement = 400; // Standard for ESPA2-LD 8-inch
   const totalElements = (Number(vessels) || 0) * (Number(elementsPerVessel) || 0);
-  const areaPerElement = 400;
-  const tempC = (Number(tempF) - 32) * (5 / 9);
 
+  // 2. Flow Balancing (m3/h)
   const feedFlowTotal = recFrac > 0 ? Number(totalFlow) / recFrac : 0;
   const concentrateFlowTotal = feedFlowTotal - Number(totalFlow || 0);
-
+  
   const feedFlowPerVessel = Number(vessels) > 0 ? feedFlowTotal / Number(vessels) : 0;
   const concFlowPerVessel = Number(vessels) > 0 ? concentrateFlowTotal / Number(vessels) : 0;
   const avgFlowPerVessel = (feedFlowPerVessel + concFlowPerVessel) / 2;
 
-  const avgFlux = totalElements > 0 ? (Number(totalFlow) * 264.17 * 24) / (totalElements * areaPerElement) : 0;
-  const highestFlux = avgFlux * (1 + (recFrac * 0.5));
+  // 3. Flux Calculations (gfd)
+  const avgFlux = totalElements > 0 ? (Number(totalFlow) * 264.172 * 24) / (totalElements * areaPerElement) : 0;
+  const highestFlux = avgFlux * (1 + (recFrac * 0.32)); 
 
-  const kfb = 0.315;
+  // 4. Pressure & Beta Logic
+  const beta = Math.exp(0.7 * recFrac);
+
+  const kfb = 0.315; 
   const pressureDrop = (Number(elementsPerVessel) || 0) * kfb * Math.pow(avgFlowPerVessel, 1.75);
+  
+  const feedPressure = 20.7; 
+  const concPressure = feedPressure - pressureDrop;
 
-  const feedPressure = 20.7;
-  const concentratePressure = feedPressure - pressureDrop;
-
-  const beta = Math.exp(0.7 * (feedFlowTotal > 0 ? Number(totalFlow) / feedFlowTotal : 0));
-
-  const permeatePH = 4.3;
-  const concentratePH = 7.3;
+  // 5. Permeate Chemistry (Simplified for empty water analysis)
+  const permPH = 4.3;
+  const concPH = 7.3;
 
   return {
     avgFlux: avgFlux.toFixed(1),
     highestFlux: highestFlux.toFixed(1),
     feedFlowVessel: feedFlowPerVessel.toFixed(2),
     concFlowVessel: concFlowPerVessel.toFixed(2),
-    pressureDrop: pressureDrop.toFixed(1),
     feedPressure: feedPressure.toFixed(1),
-    concPressure: concentratePressure.toFixed(1),
-    beta: beta.toFixed(2),
-    permeatePH,
-    concentratePH,
-    tempC: tempC.toFixed(1),
-    waterType
+    concPressure: concPressure.toFixed(1),
+    highestBeta: beta.toFixed(2),
+    permPH: permPH.toFixed(1),
+    concPH: concPH.toFixed(1),
+    warning: highestFlux > 20 ? 'Design limits exceeded' : null,
+    feedPH
   };
 };
 
