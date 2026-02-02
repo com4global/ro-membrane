@@ -9,6 +9,117 @@ const FLOW_TO_M3H = {
     'm3/d': 1 / 24,
     mld: 41.667
   };
+
+export const calculateSystem = (inputs) => {
+  const {
+    totalFlow, // m3/h
+    recovery,  // % (e.g., 55)
+    vessels,   // 23
+    elementsPerVessel = 1,
+    tempF = 77,
+    waterType = 'Brackish Well'
+  } = inputs;
+
+  const recFrac = (Number(recovery) || 0) / 100;
+  const totalElements = (Number(vessels) || 0) * (Number(elementsPerVessel) || 0);
+  const areaPerElement = 400;
+  const tempC = (Number(tempF) - 32) * (5 / 9);
+
+  const feedFlowTotal = recFrac > 0 ? Number(totalFlow) / recFrac : 0;
+  const concentrateFlowTotal = feedFlowTotal - Number(totalFlow || 0);
+
+  const feedFlowPerVessel = Number(vessels) > 0 ? feedFlowTotal / Number(vessels) : 0;
+  const concFlowPerVessel = Number(vessels) > 0 ? concentrateFlowTotal / Number(vessels) : 0;
+  const avgFlowPerVessel = (feedFlowPerVessel + concFlowPerVessel) / 2;
+
+  const avgFlux = totalElements > 0 ? (Number(totalFlow) * 264.17 * 24) / (totalElements * areaPerElement) : 0;
+  const highestFlux = avgFlux * (1 + (recFrac * 0.5));
+
+  const kfb = 0.315;
+  const pressureDrop = (Number(elementsPerVessel) || 0) * kfb * Math.pow(avgFlowPerVessel, 1.75);
+
+  const feedPressure = 20.7;
+  const concentratePressure = feedPressure - pressureDrop;
+
+  const beta = Math.exp(0.7 * (feedFlowTotal > 0 ? Number(totalFlow) / feedFlowTotal : 0));
+
+  const permeatePH = 4.3;
+  const concentratePH = 7.3;
+
+  return {
+    avgFlux: avgFlux.toFixed(1),
+    highestFlux: highestFlux.toFixed(1),
+    feedFlowVessel: feedFlowPerVessel.toFixed(2),
+    concFlowVessel: concFlowPerVessel.toFixed(2),
+    pressureDrop: pressureDrop.toFixed(1),
+    feedPressure: feedPressure.toFixed(1),
+    concPressure: concentratePressure.toFixed(1),
+    beta: beta.toFixed(2),
+    permeatePH,
+    concentratePH,
+    tempC: tempC.toFixed(1),
+    waterType
+  };
+};
+
+export const calculateIonPassage = (feedIons, systemData) => {
+  const { recovery, tempC, vessels } = systemData;
+  const recFrac = (Number(recovery) || 0) / 100;
+
+  // 1. Beta Factor (Concentration Polarization)
+  const beta = Math.exp(0.7 * recFrac);
+
+  // 2. Average Concentrate Concentration Factor (CF)
+  const cf = recFrac > 0 && recFrac < 1 ? Math.log(1 / (1 - recFrac)) / recFrac : 1;
+
+  // 3. Membrane Rejection Characteristics (Standard for ESPA2-LD)
+  const rejections = {
+    Ca: 0.994,
+    Mg: 0.994,
+    Na: 0.990,
+    K: 0.985,
+    Cl: 0.988,
+    SO4: 0.997,
+    HCO3: 0.980,
+    NO3: 0.920,
+    CO2: 0.0
+  };
+
+  let permeateTDS = 0;
+  const permeateIons = {};
+  const concentrateIons = {};
+
+  Object.keys(feedIons || {}).forEach((ion) => {
+    const feedConc = Number(feedIons[ion]) || 0;
+    const rej = rejections[ion] != null ? rejections[ion] : 0.99;
+
+    // Salt Passage = (1 - Rejection) * CF * Beta
+    const saltPassage = (1 - rej) * cf * beta;
+
+    permeateIons[ion] = feedConc * saltPassage;
+    concentrateIons[ion] = recFrac > 0 && recFrac < 1 ? feedConc / (1 - recFrac) : feedConc;
+    permeateTDS += permeateIons[ion];
+  });
+
+  // 4. Langelier Saturation Index (LSI) Approximation
+  const tds_conc = Object.values(concentrateIons).reduce((a, b) => a + (Number(b) || 0), 0);
+  const pCa = -Math.log10((concentrateIons.Ca || 0) / 40080 || 1);
+  const pAlk = -Math.log10((concentrateIons.HCO3 || 0) / 61010 || 1);
+  const C_const = (Math.log10(tds_conc || 1) - 1) / 10;
+  const pHs = (9.3 + C_const) + pCa + pAlk;
+
+  const lsi = 7.3 - pHs;
+
+  return {
+    permeateIons,
+    concentrateIons,
+    permeateTDS: permeateTDS.toFixed(2),
+    lsi: lsi.toFixed(2),
+    beta: beta.toFixed(2),
+    tempC,
+    vessels
+  };
+};
   
   export const runHydraulicBalance = (config, membrane) => {
     /* ---------- 1. RAW INPUTS & SAFETY ---------- */

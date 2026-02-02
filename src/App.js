@@ -534,6 +534,20 @@ const App = () => {
     };
     reader.readAsText(file);
   };
+  
+  useEffect(() => {
+    if (activeTab === 'design') {
+      setSystemConfig((current) => ({
+        ...current,
+        pass1Stages: 1,
+        stages: (current.stages || DEFAULT_SYSTEM_CONFIG.stages).map((stage, index) =>
+          index === 0 ? stage : { ...stage, vessels: 0 }
+        ),
+        stage2Vessels: 0,
+        designCalculated: false
+      }));
+    }
+  }, [activeTab]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f9', display: 'flex', flexDirection: 'column' }}>

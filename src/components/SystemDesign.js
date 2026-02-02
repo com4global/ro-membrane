@@ -485,13 +485,35 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
               />
             </div>
           </div>
-          <button onClick={onRun} style={{ 
-            background: 'linear-gradient(#3498db, #2980b9)', color: 'white', padding: '10px 30px', 
-            borderRadius: '20px', border: '1px solid #004a80', cursor: 'pointer', fontWeight: 'bold',
-            alignSelf: 'flex-start'
-          }}>
-            Recalculate array
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button onClick={() => {
+              setSystemConfig({
+                ...systemConfig,
+                pass1Stages: 1,
+                stages: (systemConfig.stages || stages).map((stage, index) =>
+                  index === 0 ? stage : { ...stage, vessels: 0 }
+                ),
+                stage1Vessels: 4,
+                stage2Vessels: 0,
+                elementsPerVessel: 6,
+                membraneModel: 'espa2ld',
+                designCalculated: false
+              });
+            }} style={{ 
+              background: 'linear-gradient(#bdc3c7, #95a5a6)', color: 'white', padding: '10px 30px', 
+              borderRadius: '20px', border: '1px solid #7f8c8d', cursor: 'pointer', fontWeight: 'bold',
+              alignSelf: 'flex-start'
+            }}>
+              Recalculate array
+            </button>
+            <button onClick={onRun} style={{ 
+              background: 'linear-gradient(#3498db, #2980b9)', color: 'white', padding: '10px 30px', 
+              borderRadius: '20px', border: '1px solid #004a80', cursor: 'pointer', fontWeight: 'bold',
+              alignSelf: 'flex-start'
+            }}>
+              Run
+            </button>
+          </div>
         </div>
       </div>
 
