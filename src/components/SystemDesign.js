@@ -612,12 +612,12 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
                 <tr key={`stage-${row.index}`}>
                   <td style={{ border: '1px solid #ccc' }}>1 - {row.index}</td>
                   <td style={{ border: '1px solid #ccc' }}>{row.vessels}</td>
-                  <td style={{ border: '1px solid #ccc' }}>{row.feedPressurePsi}</td>
-                  <td style={{ border: '1px solid #ccc' }}>{row.concPressurePsi}</td>
-                  <td style={{ border: '1px solid #ccc' }}>{row.feedFlowGpm}</td>
+                  <td style={{ border: '1px solid #ccc', background: Number(row.feedPressurePsi) < 0 ? '#f8d7da' : 'transparent' }}>{row.feedPressurePsi}</td>
+                  <td style={{ border: '1px solid #ccc', background: Number(row.concPressurePsi) < 0 ? '#f8d7da' : 'transparent' }}>{row.concPressurePsi}</td>
+                  <td style={{ border: '1px solid #ccc', background: Number(row.feedFlowM3h ?? row.feedFlowDisplay) > 4.5 ? '#f8d7da' : 'transparent' }}>{row.feedFlowGpm}</td>
                   <td style={{ border: '1px solid #ccc' }}>{row.concFlowGpm}</td>
                   <td style={{ border: '1px solid #ccc' }}>{row.fluxGfd}</td>
-                  <td style={{ border: '1px solid #ccc' }}>{row.highestFluxGfd}</td>
+                  <td style={{ border: '1px solid #ccc', background: Number(row.highestFluxGfd) > 20 ? '#f8d7da' : 'transparent' }}>{row.highestFluxGfd}</td>
                   <td style={{ border: '1px solid #ccc' }}>{row.highestBeta}</td>
                 </tr>
               ))}
@@ -657,13 +657,23 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
               <div>SiO2: {projection.concentrateSaturation?.sio2 ?? '0.0'}%</div>
               <div>Ca3(PO4)2: {projection.concentrateSaturation?.ca3po42 ?? '0.00'}%</div>
               <div>CaF2: {projection.concentrateSaturation?.caF2 ?? '0.0'}%</div>
-              <div>Osmotic: {projection.concentrateParameters?.osmoticPressure ?? '0.0'} psi</div>
+              <div>Osmotic: {projection.concentrateParameters?.osmoticPressure ?? '0.0'} bar</div>
               <div>CCPP: {projection.concentrateParameters?.ccpp ?? '0.0'} mg/L</div>
               <div>Langelier: {projection.concentrateParameters?.langelier ?? '0.00'}</div>
               <div>pH: {projection.concentrateParameters?.ph ?? '0.0'}</div>
               <div>TDS: {projection.concentrateParameters?.tds ?? '0.0'} mg/L</div>
             </div>
           </div>
+          {projection.designWarnings?.length > 0 && (
+            <div style={{ marginTop: '15px', padding: '10px', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', color: '#721c24', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              <p style={{ margin: 0 }}>⚠️ Design Warnings:</p>
+              <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                {projection.designWarnings.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

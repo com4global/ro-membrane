@@ -73,9 +73,9 @@ const App = () => {
   // --- 1. STATE MANAGEMENT ---
   const [snapshots, setSnapshots] = useState([]); 
   const [membranes, setMembranes] = useState([
-    { id: 'espa2ld', name: 'ESPA2-LD', area: 400, aValue: 0.18, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, type: 'Brackish' },
-    { id: 'cpa3', name: 'CPA3', area: 400, aValue: 0.12, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, type: 'Brackish' },
-    { id: 'swc5ld', name: 'SWC5-LD', area: 400, aValue: 0.06, rejection: 99.8, monoRejection: 98.0, divalentRejection: 99.8, silicaRejection: 99.0, boronRejection: 92.0, alkalinityRejection: 99.7, co2Rejection: 0.0, type: 'Seawater' },
+    { id: 'espa2ld', name: 'ESPA2-LD', area: 400, aValue: 0.18, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, kFb: 0.315, dpExponent: 1.75, type: 'Brackish' },
+    { id: 'cpa3', name: 'CPA3', area: 400, aValue: 0.12, rejection: 99.7, monoRejection: 96.0, divalentRejection: 99.7, silicaRejection: 98.0, boronRejection: 90.0, alkalinityRejection: 99.5, co2Rejection: 0.0, kFb: 0.38, dpExponent: 1.75, type: 'Brackish' },
+    { id: 'swc5ld', name: 'SWC5-LD', area: 400, aValue: 0.06, rejection: 99.8, monoRejection: 98.0, divalentRejection: 99.8, silicaRejection: 99.0, boronRejection: 92.0, alkalinityRejection: 99.7, co2Rejection: 0.0, kFb: 0.35, dpExponent: 1.75, type: 'Seawater' },
     // Legacy 4" element example (4040) used in IMSDesign screenshots
     { 
       id: 'lfc3ld4040',
@@ -89,6 +89,8 @@ const App = () => {
       boronRejection: 99.9,
       alkalinityRejection: 99.985,
       co2Rejection: 0.0,
+      kFb: 0.315,
+      dpExponent: 1.75,
       ionRejectionOverrides: {
         na: 93.04,
         cl: 91.07,
@@ -115,8 +117,9 @@ const App = () => {
   const [waterData, setWaterData] = useState({
     projectName: 'New_Project_V3',
     waterType: 'Well Water',
-    temp: 25, ph: 7.5, ca: 60, mg: 20, na: 250, k: 15, 
-    hco3: 250, so4: 100, cl: 300, no3: 25, sio2: 20
+    temp: 25, ph: 7.5, ca: 60, mg: 20, na: 250, k: 15,
+    hco3: 250, so4: 100, cl: 300, no3: 25, sio2: 20,
+    nh4: 0, sr: 0, ba: 0, po4: 0, f: 0, b: 0, co2: 0, co3: 0
   });
 
   const [systemConfig, setSystemConfig] = useState(DEFAULT_SYSTEM_CONFIG);
@@ -191,61 +194,46 @@ const App = () => {
     const perTrainProduct_gpd = perTrainProduct_m3h * M3H_TO_GPD;
     const M3H_TO_GPM = 4.402867;
     const BAR_TO_PSI = 14.5038;
-    const KFB_DEFAULT = 0.315;
-
-    const calcResults = calculateSystem({
-      totalFlow: perTrainProduct_m3h,
-      recovery: recoveryPct,
-      vessels: Number(systemConfig.stage1Vessels) || 0,
-      elementsPerVessel: Number(systemConfig.elementsPerVessel) || 0,
-      feedPH: Number(waterData.ph) || 7.0,
-      tempF: (Number(waterData.temp) * 9 / 5) + 32
-    });
 
     const pass1Stages = Math.min(Math.max(Number(systemConfig.pass1Stages) || 1, 1), 6);
     const activeStages = systemConfig.stages?.slice(0, pass1Stages) || [];
     const totalStageVessels = activeStages.reduce((sum, stage) => sum + (Number(stage?.vessels) || 0), 0);
-    let remainingFeed_m3h = perTrainFeed_m3h;
-    let runningFeedPressureBar = Number(calcResults?.feedPressure || 0);
-    const stageResults = activeStages.map((stage, index) => {
-      const stageVessels = Number(stage?.vessels) || 0;
-      const stageElements = Number(stage?.elementsPerVessel) || 0;
-      const stagePermeate_m3h = totalStageVessels > 0
-        ? perTrainProduct_m3h * (stageVessels / totalStageVessels)
-        : 0;
-      const stageFeed_m3h = remainingFeed_m3h;
-      const stageConc_m3h = stageFeed_m3h - stagePermeate_m3h;
-      remainingFeed_m3h = Math.max(stageConc_m3h, 0);
-
-      const perVesselFeed_m3h = stageVessels > 0 ? stageFeed_m3h / stageVessels : 0;
-      const perVesselConc_m3h = stageVessels > 0 ? stageConc_m3h / stageVessels : 0;
-      const qAvg = (perVesselFeed_m3h + perVesselConc_m3h) / 2;
-      const stageDropBar = stageElements > 0 ? stageElements * KFB_DEFAULT * Math.pow(qAvg, 1.75) : 0;
-      const stageFeedBar = runningFeedPressureBar;
-      const stageConcBar = stageFeedBar - stageDropBar;
-      runningFeedPressureBar = Math.max(stageConcBar, 0);
-
-      const perVesselPerm_m3h = stageVessels > 0 ? stagePermeate_m3h / stageVessels : 0;
-      const totalElementsStage = stageElements * stageVessels;
-      const stageArea_ft2 = totalElementsStage * 400;
-      const perVesselPerm_gpd = perVesselPerm_m3h * 24 * 264.172052;
-      const fluxGfd = stageArea_ft2 > 0 ? perVesselPerm_gpd / (stageElements * 400) : 0;
-      const stageRecovery = stageFeed_m3h > 0 ? stagePermeate_m3h / stageFeed_m3h : 0;
-      const highestBeta = Math.exp(0.7 * stageRecovery);
-      const highestFluxGfd = fluxGfd * (1 + (stageRecovery * 0.32));
-
-      return {
-        index: index + 1,
-        vessels: stageVessels,
-        feedPressurePsi: (stageFeedBar * BAR_TO_PSI).toFixed(1),
-        concPressurePsi: (stageConcBar * BAR_TO_PSI).toFixed(1),
-        feedFlowGpm: (perVesselFeed_m3h * M3H_TO_GPM).toFixed(2),
-        concFlowGpm: (perVesselConc_m3h * M3H_TO_GPM).toFixed(2),
-        fluxGfd: fluxGfd.toFixed(1),
-        highestFluxGfd: highestFluxGfd.toFixed(1),
-        highestBeta: highestBeta.toFixed(2)
-      };
+    const calcResults = calculateSystem({
+      totalFlow: perTrainProduct_m3h,
+      recovery: recoveryPct,
+      vessels: totalStageVessels || Number(systemConfig.stage1Vessels) || 0,
+      elementsPerVessel: Number(systemConfig.elementsPerVessel) || 0,
+      feedPH: Number(waterData.ph) || 7.0,
+      tempF: (Number(waterData.temp) * 9 / 5) + 32,
+      feedIons: {
+        ca: Number(waterData.ca) || 0,
+        mg: Number(waterData.mg) || 0,
+        na: Number(waterData.na) || 0,
+        k: Number(waterData.k) || 0,
+        sr: Number(waterData.sr) || 0,
+        ba: Number(waterData.ba) || 0,
+        hco3: Number(waterData.hco3) || 0,
+        so4: Number(waterData.so4) || 0,
+        cl: Number(waterData.cl) || 0,
+        no3: Number(waterData.no3) || 0,
+        sio2: Number(waterData.sio2) || 0,
+        po4: Number(waterData.po4) || 0,
+        f: Number(waterData.f) || 0,
+        b: Number(waterData.b) || 0,
+        co2: Number(waterData.co2) || 0,
+        co3: Number(waterData.co3) || 0,
+        nh4: Number(waterData.nh4) || 0
+      },
+      stages: activeStages,
+      membranes,
+      flowUnit: unit,
+      membraneAge: systemConfig.membraneAge,
+      fluxDeclinePerYear: systemConfig.fluxDeclinePerYear,
+      spIncreasePerYear: systemConfig.spIncreasePerYear,
+      foulingFactor: systemConfig.foulingFactor,
+      membraneModel: systemConfig.membraneModel
     });
+    const stageResults = calcResults?.stageResults || [];
     
     // Calculate flux - always calculate, but only display if designCalculated is true
     let rawFluxGFD = 0;
@@ -398,20 +386,26 @@ const App = () => {
     const formatConc = (value) => Number(value).toFixed(3);
     const sumValues = (obj) => Object.values(obj).reduce((sum, val) => sum + (Number(val) || 0), 0);
 
-    const permeateConcentration = Object.fromEntries(
+    const permeateConcentration = calcResults?.permeateIons || Object.fromEntries(
       Object.entries(ionFeed).map(([key, value]) => {
         const rejection = getIonRejection(key);
         const passage = Math.max(1 - rejection / 100, 0);
         return [key, formatConc(value * passage)];
       })
     );
-    const concentrateConcentration = Object.fromEntries(
+    const concentrateConcentration = calcResults?.concentrateIons || Object.fromEntries(
       Object.entries(ionFeed).map(([key, value]) => [key, formatConc(value * CF)])
     );
 
-    const permeateTds = sumValues(permeateConcentration);
-    const concentrateTds = sumValues(concentrateConcentration);
-    const osmoticP = (concentrateTds * 0.76) / 1000;
+    const permeateTds = calcResults?.permeateParameters?.tds != null
+      ? Number(calcResults.permeateParameters.tds)
+      : sumValues(permeateConcentration);
+    const concentrateTds = calcResults?.concentrateParameters?.tds != null
+      ? Number(calcResults.concentrateParameters.tds)
+      : sumValues(concentrateConcentration);
+    const osmoticP = calcResults?.concentrateParameters?.osmoticPressure != null
+      ? Number(calcResults.concentrateParameters.osmoticPressure)
+      : (concentrateTds * 0.76) / 1000;
 
     // Ageing / fouling / SP increase: approximate Hydranautics behaviour
     const membraneAge = Math.max(Number(systemConfig.membraneAge) || 0, 0);
@@ -425,7 +419,9 @@ const App = () => {
 
     // Pump model expects a flux-like term; use GFD computed above.
     const pressureTerm = (fluxGFD / (TCF * (aEffective || aBase))) * foulingFactor;
-    const pumpPressure = (pressureTerm + osmoticP + 1.2) * spFactor;
+    const pumpPressure = calcResults?.results?.feedPressure != null
+      ? Number(calcResults.results.feedPressure)
+      : (pressureTerm + osmoticP + 1.2) * spFactor;
 
     // Use total plant feed for power (m3/h)
     const totalFeed_m3h = perTrainFeed_m3h * trains;
@@ -443,8 +439,12 @@ const App = () => {
       return Number(value).toFixed(1); // 1 decimal when calculated
     };
 
-    const permeatePh = Math.min(Math.max(getNumeric(waterData.ph) - 1.1, 0), 14);
-    const concentratePh = Math.min(Math.max(getNumeric(waterData.ph) + Math.log10(CF) * 0.3, 0), 14);
+    const permeatePh = calcResults?.permeateParameters?.ph != null
+      ? Number(calcResults.permeateParameters.ph)
+      : Math.min(Math.max(getNumeric(waterData.ph) - 1.1, 0), 14);
+    const concentratePh = calcResults?.concentrateParameters?.ph != null
+      ? Number(calcResults.concentrateParameters.ph)
+      : Math.min(Math.max(getNumeric(waterData.ph) + Math.log10(CF) * 0.3, 0), 14);
 
     // Langelier Saturation Index (simplified, consistent with PreTreatment)
     const pCa = 5.0 - Math.log10(Math.max(getNumeric(concentrateConcentration.ca) * 2.5, 0.0001));
@@ -462,7 +462,7 @@ const App = () => {
     const po4Conc = getNumeric(concentrateConcentration.po4);
     const fConc = getNumeric(concentrateConcentration.f);
 
-    const concentrateSaturation = {
+    const concentrateSaturation = calcResults?.concentrateSaturation || {
       caSo4: Number((caConc * so4Conc) / 1000).toFixed(1),
       baSo4: Number((baConc * so4Conc) / 50).toFixed(1),
       srSo4: Number((srConc * so4Conc) / 2000).toFixed(1),
@@ -471,14 +471,14 @@ const App = () => {
       caF2: Number((caConc * fConc) / 500).toFixed(1)
     };
 
-    const concentrateParameters = {
+    const concentrateParameters = calcResults?.concentrateParameters || {
       osmoticPressure: osmoticP.toFixed(1),
       ccpp: Number(ccpp).toFixed(1),
       langelier: lsi.toFixed(2),
       ph: concentratePh.toFixed(1),
       tds: concentrateTds.toFixed(1)
     };
-    const permeateParameters = {
+    const permeateParameters = calcResults?.permeateParameters || {
       ph: permeatePh.toFixed(1),
       tds: permeateTds.toFixed(1)
     };
@@ -509,14 +509,15 @@ const App = () => {
       activeMembrane: activeMem,
       totalElements: totalElements,
 
-      calcFeedPressurePsi: calcResults ? (Number(calcResults.feedPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
-      calcConcPressurePsi: calcResults ? (Number(calcResults.concPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
-      calcFeedFlowGpm: calcResults ? (Number(calcResults.feedFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
-      calcConcFlowGpm: calcResults ? (Number(calcResults.concFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
-      calcFluxGfd: calcResults?.avgFlux ?? '0.0',
-      calcHighestFluxGfd: calcResults?.highestFlux ?? '0.0',
-      calcHighestBeta: calcResults?.highestBeta ?? '0.00',
+      calcFeedPressurePsi: calcResults?.results ? (Number(calcResults.results.feedPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+      calcConcPressurePsi: calcResults?.results ? (Number(calcResults.results.concPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+      calcFeedFlowGpm: calcResults?.results ? (Number(calcResults.results.feedFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
+      calcConcFlowGpm: calcResults?.results ? (Number(calcResults.results.concFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
+      calcFluxGfd: calcResults?.results?.avgFlux ?? '0.0',
+      calcHighestFluxGfd: calcResults?.results?.highestFlux ?? '0.0',
+      calcHighestBeta: calcResults?.results?.highestBeta ?? '0.00',
       stageResults,
+      designWarnings: calcResults?.designWarnings || [],
 
       permeateConcentration,
       concentrateSaturation,
