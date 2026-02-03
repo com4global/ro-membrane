@@ -39,7 +39,7 @@ const MembraneEditor = ({ membranes, setMembranes, systemConfig, setSystemConfig
   const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ width: '100%', margin: '0' }}>
       <h2 style={{ color: '#2c3e50' }}>Membrane Database Editor</h2>
       <p style={{ color: '#666', marginBottom: '20px' }}>
         Add new membrane specifications here. These will immediately appear in your <strong>System Design</strong> dropdown.
